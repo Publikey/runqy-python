@@ -5,7 +5,7 @@ Python SDK for creating tasks that run on [runqy-worker](../runqy-worker).
 ## Installation
 
 ```bash
-pip install runqy-task
+pip install git+https://github.com/Publikey/runqy-python.git
 ```
 
 ## Usage
@@ -45,6 +45,26 @@ def process(payload: dict, ctx: dict) -> dict:
 if __name__ == "__main__":
     run()
 ```
+
+### One-Shot Tasks
+
+For lightweight tasks that don't need to stay loaded in memory, use `run_once()`:
+
+```python
+from runqy_task import task, run_once
+
+@task
+def process(payload: dict) -> dict:
+    return {"result": payload["x"] * 2}
+
+if __name__ == "__main__":
+    run_once()  # Process one task and exit
+```
+
+| Function | Behavior | Use case |
+|----------|----------|----------|
+| `run()` | Loops forever, handles many tasks | ML inference (expensive load) |
+| `run_once()` | Handles ONE task, exits | Lightweight tasks |
 
 ## Protocol
 

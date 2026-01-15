@@ -8,7 +8,7 @@ license = {text = "MIT"}
 dependencies = []
 
 [project.urls]
-Repository = "https://github.com/your-org/runqy-python"
+Repository = "https://github.com/Publikey/runqy-python"
 
 [build-system]
 requires = ["hatchling"]
