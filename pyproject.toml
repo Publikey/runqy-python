@@ -6,9 +6,26 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 dependencies = []
+authors = [
+    {name = "Publikey"}
+]
+keywords = ["task-queue", "distributed", "worker", "redis", "async"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 
 [project.urls]
 Repository = "https://github.com/Publikey/runqy-python"
+Issues = "https://github.com/Publikey/runqy-python/issues"
 
 [build-system]
 requires = ["hatchling"]
