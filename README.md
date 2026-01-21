@@ -5,7 +5,7 @@ Python SDK for creating tasks that run on [runqy-worker](../runqy-worker).
 ## Installation
 
 ```bash
-pip install git+https://github.com/Publikey/runqy-python.git
+pip install runqy-task
 ```
 
 ## Usage
