@@ -1,6 +1,14 @@
-# runqy-task
+<p align="center">
+  <img src="assets/logo.svg" alt="runqy logo" width="80" height="80">
+</p>
 
-Python SDK for creating tasks that run on [runqy-worker](../runqy-worker).
+<h1 align="center">runqy-task</h1>
+
+<p align="center">
+  Python SDK for creating tasks that run on <a href="https://github.com/publikey/runqy-worker">runqy-worker</a>.
+  <br>
+  <a href="https://docs.runqy.com"><strong>Documentation</strong></a> · <a href="https://runqy.com"><strong>Website</strong></a>
+</p>
 
 ## Installation
 
