@@ -1,14 +1,14 @@
 [project]
-name = "runqy-task"
-version = "0.1.0"
-description = "Python SDK for runqy-worker tasks"
+name = "runqy-python"
+version = "0.2.0"
+description = "Python SDK for runqy - write distributed task handlers with simple decorators"
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = []
 authors = [
     {name = "Publikey"}
 ]
-keywords = ["task-queue", "distributed", "worker", "redis", "async"]
+keywords = ["task-queue", "distributed", "worker", "redis", "async", "client"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -23,6 +23,7 @@ classifiers = [
 ]
 
 [project.urls]
+Documentation = "https://docs.runqy.com"
 Repository = "https://github.com/Publikey/runqy-python"
 Issues = "https://github.com/Publikey/runqy-python/issues"
 
