@@ -49,7 +49,7 @@ class RunqyClient:
         client = RunqyClient("http://localhost:3000", api_key="your-api-key")
 
         # Enqueue a task
-        task = client.enqueue("inference_default", {"input": "hello"})
+        task = client.enqueue("inference.default", {"input": "hello"})
         print(f"Task ID: {task.task_id}")
 
         # Check result
@@ -128,7 +128,7 @@ class RunqyClient:
         """Enqueue a task to a queue.
 
         Args:
-            queue: Queue name (e.g., "inference_default")
+            queue: Queue name (e.g., "inference.default")
             payload: Task payload data
             timeout: Task execution timeout in seconds (default: 300)
 
@@ -140,7 +140,7 @@ class RunqyClient:
             RunqyError: For other errors
 
         Example:
-            task = client.enqueue("inference_default", {"input": "hello"})
+            task = client.enqueue("inference.default", {"input": "hello"})
             print(f"Enqueued task: {task.task_id}")
         """
         data = {
@@ -217,7 +217,7 @@ def enqueue(
     """Quick enqueue without creating a client instance.
 
     Args:
-        queue: Queue name (e.g., "inference_default")
+        queue: Queue name (e.g., "inference.default")
         payload: Task payload data
         server_url: Base URL of the runqy server
         api_key: API key for authentication
@@ -230,7 +230,7 @@ def enqueue(
         from runqy_python import enqueue
 
         task = enqueue(
-            "inference_default",
+            "inference.default",
             {"input": "hello"},
             server_url="http://localhost:3000",
             api_key="your-api-key"
