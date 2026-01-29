@@ -95,7 +95,7 @@ from runqy_python import RunqyClient
 client = RunqyClient("http://localhost:3000", api_key="your-api-key")
 
 # Enqueue a task
-task = client.enqueue("inference_default", {"input": "hello"})
+task = client.enqueue("inference.default", {"input": "hello"})
 print(f"Task ID: {task.task_id}")
 
 # Check result
@@ -109,7 +109,7 @@ Or use the convenience function:
 from runqy_python import enqueue
 
 task = enqueue(
-    "inference_default",
+    "inference.default",
     {"input": "hello"},
     server_url="http://localhost:3000",
     api_key="your-api-key"
@@ -124,7 +124,7 @@ task = enqueue(
 - `timeout`: Default request timeout in seconds
 
 **client.enqueue(queue, payload, timeout=300)**
-- `queue`: Queue name (e.g., `"inference_default"`)
+- `queue`: Queue name (e.g., `"inference.default"`)
 - `payload`: Task payload as a dict
 - `timeout`: Task execution timeout in seconds
 - Returns: `TaskInfo` with `task_id`, `queue`, `state`
