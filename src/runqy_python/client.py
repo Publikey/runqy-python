@@ -42,6 +42,22 @@ class TaskInfo:
     payload: Optional[Dict[str, Any]] = None
 
 
+@dataclass
+class BatchResult:
+    """Result of a batch enqueue operation.
+
+    Attributes:
+        enqueued: Number of successfully enqueued tasks
+        failed: Number of failed tasks
+        task_ids: List of task IDs for successful tasks
+        errors: List of error messages for failed tasks
+    """
+    enqueued: int
+    failed: int
+    task_ids: list
+    errors: list
+
+
 class RunqyClient:
     """Client for interacting with runqy server.
 
@@ -159,6 +175,58 @@ class RunqyClient:
             payload=payload,
         )
 
+    def enqueue_batch(
+        self,
+        queue: str,
+        payloads: list,
+        timeout: int = 300
+    ) -> BatchResult:
+        """Enqueue multiple tasks in a single request.
+
+        Uses the batch endpoint for high-throughput job submission.
+        This is significantly faster than calling enqueue() multiple times.
+
+        Args:
+            queue: Queue name (e.g., "inference.default")
+            payloads: List of task payload dictionaries
+            timeout: Task execution timeout in seconds (default: 300)
+
+        Returns:
+            BatchResult with counts and task IDs
+
+        Raises:
+            AuthenticationError: If API key is invalid
+            RunqyError: For other errors
+
+        Example:
+            result = client.enqueue_batch("inference.default", [
+                {"input": "hello"},
+                {"input": "world"},
+                {"input": "foo"},
+            ])
+            print(f"Enqueued: {result.enqueued}, Task IDs: {result.task_ids}")
+        """
+        # Build jobs array with proper structure
+        jobs = [
+            {"timeout": timeout, "data": payload}
+            for payload in payloads
+        ]
+
+        data = {
+            "queue": queue,
+            "timeout": timeout,
+            "jobs": jobs,
+        }
+
+        response = self._request("POST", "/queue/add-batch", data)
+
+        return BatchResult(
+            enqueued=response.get("enqueued", 0),
+            failed=response.get("failed", 0),
+            task_ids=response.get("task_ids", []),
+            errors=response.get("errors", []),
+        )
+
     def get_task(self, task_id: str) -> TaskInfo:
         """Get task status and result.
 
@@ -238,3 +306,36 @@ def enqueue(
         print(f"Task ID: {task.task_id}")
     """
     return RunqyClient(server_url, api_key).enqueue(queue, payload, timeout)
+
+
+def enqueue_batch(
+    queue: str,
+    payloads: list,
+    server_url: str,
+    api_key: str,
+    timeout: int = 300
+) -> BatchResult:
+    """Quick batch enqueue without creating a client instance.
+
+    Args:
+        queue: Queue name (e.g., "inference.default")
+        payloads: List of task payload dictionaries
+        server_url: Base URL of the runqy server
+        api_key: API key for authentication
+        timeout: Task execution timeout in seconds (default: 300)
+
+    Returns:
+        BatchResult with counts and task IDs
+
+    Example:
+        from runqy_python import enqueue_batch
+
+        result = enqueue_batch(
+            "inference.default",
+            [{"input": "hello"}, {"input": "world"}],
+            server_url="http://localhost:3000",
+            api_key="your-api-key"
+        )
+        print(f"Enqueued {result.enqueued} tasks")
+    """
+    return RunqyClient(server_url, api_key).enqueue_batch(queue, payloads, timeout)

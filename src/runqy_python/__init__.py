@@ -8,10 +8,12 @@ from .runner import run, run_once
 from .client import (
     RunqyClient,
     TaskInfo,
+    BatchResult,
     RunqyError,
     AuthenticationError,
     TaskNotFoundError,
     enqueue,
+    enqueue_batch,
 )
 
 __all__ = [
@@ -23,10 +25,12 @@ __all__ = [
     # Client
     "RunqyClient",
     "TaskInfo",
+    "BatchResult",
     "RunqyError",
     "AuthenticationError",
     "TaskNotFoundError",
     "enqueue",
+    "enqueue_batch",
 ]
 
 __version__ = "0.2.0"
