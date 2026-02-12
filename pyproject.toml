@@ -1,6 +1,6 @@
 [project]
 name = "runqy-python"
-version = "0.2.0"
+version = "0.2.1"
 description = "Python SDK for runqy - write distributed task handlers with simple decorators"
 readme = "README.md"
 requires-python = ">=3.8"
