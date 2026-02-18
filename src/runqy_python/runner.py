@@ -2,7 +2,40 @@
 
 import sys
 import json
+import signal
 from .decorator import get_handler, get_loader
+
+# Flag for graceful shutdown
+_shutdown_requested = False
+
+
+def _shutdown_handler(signum, frame):
+    """Handle SIGTERM/SIGINT for graceful shutdown."""
+    global _shutdown_requested
+    _shutdown_requested = True
+    sys.exit(0)
+
+
+def _safe_write(data):
+    """Safely write JSON data to stdout, handling BrokenPipeError and serialization errors."""
+    try:
+        text = json.dumps(data)
+    except (TypeError, ValueError) as e:
+        # Result not JSON-serializable — send error response instead
+        fallback = {
+            "task_id": data.get("task_id", "unknown") if isinstance(data, dict) else "unknown",
+            "result": None,
+            "error": f"Result not JSON-serializable: {e}",
+            "retry": False,
+        }
+        text = json.dumps(fallback)
+
+    try:
+        sys.stdout.write(text + "\n")
+        sys.stdout.flush()
+    except BrokenPipeError:
+        # Pipe closed by worker — exit cleanly
+        sys.exit(1)
 
 
 def run():
@@ -15,6 +48,10 @@ def run():
     4. Calls the registered @task handler with the payload (and context if @load was used)
     5. Writes JSON responses to stdout
     """
+    # Install signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, _shutdown_handler)
+    signal.signal(signal.SIGINT, _shutdown_handler)
+
     handler = get_handler()
     if handler is None:
         raise RuntimeError("No task handler registered. Use @task decorator.")
@@ -23,14 +60,20 @@ def run():
     loader = get_loader()
     ctx = None
     if loader is not None:
-        ctx = loader()
+        try:
+            ctx = loader()
+        except Exception as e:
+            _safe_write({"status": "error", "error": f"@load failed: {e}"})
+            sys.exit(1)
 
     # Ready signal
-    print(json.dumps({"status": "ready"}))
-    sys.stdout.flush()
+    _safe_write({"status": "ready"})
 
     # Process tasks from stdin
     for line in sys.stdin:
+        if _shutdown_requested:
+            break
+
         line = line.strip()
         if not line:
             continue
@@ -53,6 +96,13 @@ def run():
                 "error": None,
                 "retry": False
             }
+        except json.JSONDecodeError as e:
+            response = {
+                "task_id": task_id,
+                "result": None,
+                "error": f"Invalid JSON input: {e}",
+                "retry": False
+            }
         except Exception as e:
             response = {
                 "task_id": task_id,
@@ -61,8 +111,7 @@ def run():
                 "retry": False
             }
 
-        print(json.dumps(response))
-        sys.stdout.flush()
+        _safe_write(response)
 
 
 def run_once():
@@ -78,6 +127,10 @@ def run_once():
     5. Writes response to stdout
     6. Exits
     """
+    # Install signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, _shutdown_handler)
+    signal.signal(signal.SIGINT, _shutdown_handler)
+
     handler = get_handler()
     if handler is None:
         raise RuntimeError("No task handler registered. Use @task decorator.")
@@ -86,11 +139,14 @@ def run_once():
     loader = get_loader()
     ctx = None
     if loader is not None:
-        ctx = loader()
+        try:
+            ctx = loader()
+        except Exception as e:
+            _safe_write({"status": "error", "error": f"@load failed: {e}"})
+            sys.exit(1)
 
     # Ready signal
-    print(json.dumps({"status": "ready"}))
-    sys.stdout.flush()
+    _safe_write({"status": "ready"})
 
     # Read ONE task
     line = sys.stdin.readline().strip()
@@ -115,6 +171,13 @@ def run_once():
             "error": None,
             "retry": False
         }
+    except json.JSONDecodeError as e:
+        response = {
+            "task_id": task_id,
+            "result": None,
+            "error": f"Invalid JSON input: {e}",
+            "retry": False
+        }
     except Exception as e:
         response = {
             "task_id": task_id,
@@ -123,5 +186,4 @@ def run_once():
             "retry": False
         }
 
-    print(json.dumps(response))
-    sys.stdout.flush()
+    _safe_write(response)
