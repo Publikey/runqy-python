@@ -3,17 +3,24 @@
 import sys
 import json
 import signal
-from .decorator import get_handler, get_loader
+import traceback
+from .decorator import get_handler, get_loader, RetryableError
 
 # Flag for graceful shutdown
 _shutdown_requested = False
 
 
 def _shutdown_handler(signum, frame):
-    """Handle SIGTERM/SIGINT for graceful shutdown."""
+    """Handle SIGTERM/SIGINT for graceful shutdown.
+
+    First signal: set flag so the current task can complete before exit.
+    Second signal: force exit (in case process is stuck).
+    """
     global _shutdown_requested
+    if _shutdown_requested:
+        # Second signal — force exit
+        sys.exit(1)
     _shutdown_requested = True
-    sys.exit(0)
 
 
 def _safe_write(data):
@@ -103,11 +110,18 @@ def run():
                 "error": f"Invalid JSON input: {e}",
                 "retry": False
             }
-        except Exception as e:
+        except RetryableError as e:
             response = {
                 "task_id": task_id,
                 "result": None,
                 "error": str(e),
+                "retry": True
+            }
+        except Exception as e:
+            response = {
+                "task_id": task_id,
+                "result": None,
+                "error": traceback.format_exc(),
                 "retry": False
             }
 
@@ -178,11 +192,18 @@ def run_once():
             "error": f"Invalid JSON input: {e}",
             "retry": False
         }
-    except Exception as e:
+    except RetryableError as e:
         response = {
             "task_id": task_id,
             "result": None,
             "error": str(e),
+            "retry": True
+        }
+    except Exception as e:
+        response = {
+            "task_id": task_id,
+            "result": None,
+            "error": traceback.format_exc(),
             "retry": False
         }
 

@@ -4,6 +4,23 @@ _registered_handler = None
 _registered_loader = None
 
 
+class RetryableError(Exception):
+    """Raise this from a @task handler to signal that the task should be retried.
+
+    Usage:
+        from runqy_python import task, RetryableError
+
+        @task
+        def process(payload):
+            try:
+                result = call_external_api(payload)
+            except TimeoutError:
+                raise RetryableError("API timed out, please retry")
+            return result
+    """
+    pass
+
+
 def task(func):
     """Decorator to register a function as the task handler.
 

@@ -404,13 +404,17 @@ class ShutdownHandlerTestCase(unittest.TestCase):
     def tearDown(self):
         runner._shutdown_requested = False
 
-    def test_shutdown_handler_sets_flag_and_exits(self):
-        """_shutdown_handler should set _shutdown_requested and call sys.exit(0)."""
-        with self.assertRaises(SystemExit) as ctx:
-            runner._shutdown_handler(15, None)  # SIGTERM = 15
-
-        self.assertEqual(ctx.exception.code, 0)
+    def test_shutdown_handler_sets_flag_on_first_signal(self):
+        """First signal should set _shutdown_requested without exiting."""
+        runner._shutdown_handler(15, None)  # SIGTERM = 15
         self.assertTrue(runner._shutdown_requested)
+
+    def test_shutdown_handler_exits_on_second_signal(self):
+        """Second signal should force exit when already shutting down."""
+        runner._shutdown_requested = True  # simulate first signal already received
+        with self.assertRaises(SystemExit) as ctx:
+            runner._shutdown_handler(15, None)  # second SIGTERM
+        self.assertEqual(ctx.exception.code, 1)
 
 
 if __name__ == "__main__":
