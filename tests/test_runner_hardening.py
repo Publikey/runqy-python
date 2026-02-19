@@ -23,6 +23,14 @@ import runqy_python.runner as runner
 class SafeWriteTestCase(unittest.TestCase):
     """Tests for runner._safe_write."""
 
+    def setUp(self):
+        # Ensure _safe_write uses sys.stdout (no protocol redirect active)
+        self._saved_protocol_stdout = runner._protocol_stdout
+        runner._protocol_stdout = None
+
+    def tearDown(self):
+        runner._protocol_stdout = self._saved_protocol_stdout
+
     def test_normal_dict_outputs_json(self):
         """_safe_write with a normal dict should write valid JSON + newline to stdout."""
         fake_stdout = io.StringIO()
@@ -105,15 +113,15 @@ class RunLoadFailureTestCase(unittest.TestCase):
 
     def setUp(self):
         # Reset global decorator state before each test
-        decorator._registered_handler = None
-        decorator._registered_loader = None
-        # Reset shutdown flag
+        decorator._reset()
+        # Reset shutdown flag and protocol stdout
         runner._shutdown_requested = False
+        runner._protocol_stdout = None
 
     def tearDown(self):
-        decorator._registered_handler = None
-        decorator._registered_loader = None
+        decorator._reset()
         runner._shutdown_requested = False
+        runner._protocol_stdout = None
 
     def test_run_load_failure_sends_error_status(self):
         """run() should send {"status":"error"} and exit(1) when @load raises."""
@@ -129,6 +137,7 @@ class RunLoadFailureTestCase(unittest.TestCase):
         fake_stdout = io.StringIO()
 
         with mock.patch.object(sys, "stdout", fake_stdout), \
+             mock.patch("runqy_python.runner._protect_stdout"), \
              mock.patch("runqy_python.runner.signal.signal"):
             with self.assertRaises(SystemExit) as ctx:
                 runner.run()
@@ -156,6 +165,7 @@ class RunLoadFailureTestCase(unittest.TestCase):
 
         with mock.patch.object(sys, "stdin", fake_stdin), \
              mock.patch.object(sys, "stdout", fake_stdout), \
+             mock.patch("runqy_python.runner._protect_stdout"), \
              mock.patch("runqy_python.runner.signal.signal"):
             runner.run()
 
@@ -172,7 +182,8 @@ class RunLoadFailureTestCase(unittest.TestCase):
 
     def test_run_no_handler_raises(self):
         """run() should raise RuntimeError if no @task handler is registered."""
-        with mock.patch("runqy_python.runner.signal.signal"):
+        with mock.patch("runqy_python.runner._protect_stdout"), \
+             mock.patch("runqy_python.runner.signal.signal"):
             with self.assertRaises(RuntimeError) as ctx:
                 runner.run()
             self.assertIn("No task handler registered", str(ctx.exception))
@@ -182,14 +193,14 @@ class RunInvalidJsonTestCase(unittest.TestCase):
     """Tests for run() handling invalid JSON input."""
 
     def setUp(self):
-        decorator._registered_handler = None
-        decorator._registered_loader = None
+        decorator._reset()
         runner._shutdown_requested = False
+        runner._protocol_stdout = None
 
     def tearDown(self):
-        decorator._registered_handler = None
-        decorator._registered_loader = None
+        decorator._reset()
         runner._shutdown_requested = False
+        runner._protocol_stdout = None
 
     def test_invalid_json_sends_error_response(self):
         """run() should send an error response with 'Invalid JSON input' for malformed input."""
@@ -204,6 +215,7 @@ class RunInvalidJsonTestCase(unittest.TestCase):
 
         with mock.patch.object(sys, "stdin", fake_stdin), \
              mock.patch.object(sys, "stdout", fake_stdout), \
+             mock.patch("runqy_python.runner._protect_stdout"), \
              mock.patch("runqy_python.runner.signal.signal"):
             runner.run()
 
@@ -233,6 +245,7 @@ class RunInvalidJsonTestCase(unittest.TestCase):
 
         with mock.patch.object(sys, "stdin", fake_stdin), \
              mock.patch.object(sys, "stdout", fake_stdout), \
+             mock.patch("runqy_python.runner._protect_stdout"), \
              mock.patch("runqy_python.runner.signal.signal"):
             runner.run()
 
@@ -263,6 +276,7 @@ class RunInvalidJsonTestCase(unittest.TestCase):
 
         with mock.patch.object(sys, "stdin", fake_stdin), \
              mock.patch.object(sys, "stdout", fake_stdout), \
+             mock.patch("runqy_python.runner._protect_stdout"), \
              mock.patch("runqy_python.runner.signal.signal"):
             runner.run()
 
@@ -277,14 +291,14 @@ class RunOnceLoadFailureTestCase(unittest.TestCase):
     """Tests for run_once() handling a failing @load function."""
 
     def setUp(self):
-        decorator._registered_handler = None
-        decorator._registered_loader = None
+        decorator._reset()
         runner._shutdown_requested = False
+        runner._protocol_stdout = None
 
     def tearDown(self):
-        decorator._registered_handler = None
-        decorator._registered_loader = None
+        decorator._reset()
         runner._shutdown_requested = False
+        runner._protocol_stdout = None
 
     def test_run_once_load_failure_sends_error_status(self):
         """run_once() should send {"status":"error"} and exit(1) when @load raises."""
@@ -300,6 +314,7 @@ class RunOnceLoadFailureTestCase(unittest.TestCase):
         fake_stdout = io.StringIO()
 
         with mock.patch.object(sys, "stdout", fake_stdout), \
+             mock.patch("runqy_python.runner._protect_stdout"), \
              mock.patch("runqy_python.runner.signal.signal"):
             with self.assertRaises(SystemExit) as ctx:
                 runner.run_once()
@@ -326,6 +341,7 @@ class RunOnceLoadFailureTestCase(unittest.TestCase):
 
         with mock.patch.object(sys, "stdin", fake_stdin), \
              mock.patch.object(sys, "stdout", fake_stdout), \
+             mock.patch("runqy_python.runner._protect_stdout"), \
              mock.patch("runqy_python.runner.signal.signal"):
             runner.run_once()
 
@@ -352,6 +368,7 @@ class RunOnceLoadFailureTestCase(unittest.TestCase):
 
         with mock.patch.object(sys, "stdin", fake_stdin), \
              mock.patch.object(sys, "stdout", fake_stdout), \
+             mock.patch("runqy_python.runner._protect_stdout"), \
              mock.patch("runqy_python.runner.signal.signal"):
             runner.run_once()
 
@@ -368,7 +385,8 @@ class RunOnceLoadFailureTestCase(unittest.TestCase):
 
     def test_run_once_no_handler_raises(self):
         """run_once() should raise RuntimeError if no @task handler is registered."""
-        with mock.patch("runqy_python.runner.signal.signal"):
+        with mock.patch("runqy_python.runner._protect_stdout"), \
+             mock.patch("runqy_python.runner.signal.signal"):
             with self.assertRaises(RuntimeError) as ctx:
                 runner.run_once()
             self.assertIn("No task handler registered", str(ctx.exception))
@@ -385,6 +403,7 @@ class RunOnceLoadFailureTestCase(unittest.TestCase):
 
         with mock.patch.object(sys, "stdin", fake_stdin), \
              mock.patch.object(sys, "stdout", fake_stdout), \
+             mock.patch("runqy_python.runner._protect_stdout"), \
              mock.patch("runqy_python.runner.signal.signal"):
             # Should not raise
             runner.run_once()
@@ -415,6 +434,107 @@ class ShutdownHandlerTestCase(unittest.TestCase):
         with self.assertRaises(SystemExit) as ctx:
             runner._shutdown_handler(15, None)  # second SIGTERM
         self.assertEqual(ctx.exception.code, 1)
+
+
+class StdoutProtectionTestCase(unittest.TestCase):
+    """Tests for stdout protection (print() shouldn't corrupt protocol)."""
+
+    def setUp(self):
+        decorator._reset()
+        runner._shutdown_requested = False
+        runner._protocol_stdout = None
+
+    def tearDown(self):
+        decorator._reset()
+        runner._shutdown_requested = False
+        runner._protocol_stdout = None
+
+    def test_print_in_handler_does_not_appear_in_protocol(self):
+        """print() inside a @task handler should not corrupt JSON protocol output."""
+
+        @decorator.task
+        def my_handler(payload):
+            print("debug: processing task")  # This should go to stderr, not protocol
+            return {"ok": True}
+
+        task_input = json.dumps({"task_id": "t-print", "payload": {}}) + "\n"
+        fake_stdin = io.StringIO(task_input)
+        fake_protocol = io.StringIO()
+        fake_stderr = io.StringIO()
+
+        # Simulate what _protect_stdout does: set _protocol_stdout and redirect stdout to stderr
+        runner._protocol_stdout = fake_protocol
+
+        with mock.patch.object(sys, "stdin", fake_stdin), \
+             mock.patch.object(sys, "stdout", fake_stderr), \
+             mock.patch("runqy_python.runner._protect_stdout"), \
+             mock.patch("runqy_python.runner.signal.signal"):
+            runner.run()
+
+        # Protocol output should be clean JSON only
+        protocol_lines = fake_protocol.getvalue().strip().split("\n")
+        self.assertEqual(len(protocol_lines), 2)  # ready + response
+        ready = json.loads(protocol_lines[0])
+        self.assertEqual(ready["status"], "ready")
+        resp = json.loads(protocol_lines[1])
+        self.assertEqual(resp["task_id"], "t-print")
+        self.assertEqual(resp["result"], {"ok": True})
+
+        # print() output should have gone to "stderr" (which is sys.stdout in this test)
+        self.assertIn("debug: processing task", fake_stderr.getvalue())
+
+
+class DecoratorOverwriteTestCase(unittest.TestCase):
+    """Tests that @task and @load raise on double registration."""
+
+    def setUp(self):
+        decorator._reset()
+
+    def tearDown(self):
+        decorator._reset()
+
+    def test_task_double_registration_raises(self):
+        """Registering @task twice should raise RuntimeError."""
+        @decorator.task
+        def handler_one(payload):
+            return {}
+
+        with self.assertRaises(RuntimeError) as ctx:
+            @decorator.task
+            def handler_two(payload):
+                return {}
+
+        self.assertIn("already registered", str(ctx.exception))
+        self.assertIn("handler_one", str(ctx.exception))
+
+    def test_load_double_registration_raises(self):
+        """Registering @load twice should raise RuntimeError."""
+        @decorator.load
+        def loader_one():
+            return {}
+
+        with self.assertRaises(RuntimeError) as ctx:
+            @decorator.load
+            def loader_two():
+                return {}
+
+        self.assertIn("already registered", str(ctx.exception))
+        self.assertIn("loader_one", str(ctx.exception))
+
+    def test_reset_allows_re_registration(self):
+        """After _reset(), decorators can be applied again."""
+        @decorator.task
+        def handler_one(payload):
+            return {}
+
+        decorator._reset()
+
+        # Should not raise
+        @decorator.task
+        def handler_two(payload):
+            return {"new": True}
+
+        self.assertEqual(decorator.get_handler(), handler_two)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 """Runner loop for processing tasks from runqy-worker."""
 
+import os
 import sys
 import json
 import signal
@@ -8,6 +9,9 @@ from .decorator import get_handler, get_loader, RetryableError
 
 # Flag for graceful shutdown
 _shutdown_requested = False
+
+# Private file object for protocol communication (set by _protect_stdout)
+_protocol_stdout = None
 
 
 def _shutdown_handler(signum, frame):
@@ -23,8 +27,23 @@ def _shutdown_handler(signum, frame):
     _shutdown_requested = True
 
 
+def _protect_stdout():
+    """Redirect sys.stdout to stderr so print() doesn't corrupt the JSON protocol.
+
+    The original stdout fd is saved to _protocol_stdout for _safe_write to use.
+    """
+    global _protocol_stdout
+    # Duplicate the real stdout fd so it survives sys.stdout reassignment
+    proto_fd = os.dup(sys.stdout.fileno())
+    _protocol_stdout = os.fdopen(proto_fd, "w")
+    # Redirect sys.stdout to stderr so user print() goes to logs
+    sys.stdout = sys.stderr
+
+
 def _safe_write(data):
-    """Safely write JSON data to stdout, handling BrokenPipeError and serialization errors."""
+    """Safely write JSON data to the protocol channel, handling BrokenPipeError and serialization errors."""
+    out = _protocol_stdout if _protocol_stdout is not None else sys.stdout
+
     try:
         text = json.dumps(data)
     except (TypeError, ValueError) as e:
@@ -38,8 +57,8 @@ def _safe_write(data):
         text = json.dumps(fallback)
 
     try:
-        sys.stdout.write(text + "\n")
-        sys.stdout.flush()
+        out.write(text + "\n")
+        out.flush()
     except BrokenPipeError:
         # Pipe closed by worker — exit cleanly
         sys.exit(1)
@@ -55,6 +74,9 @@ def run():
     4. Calls the registered @task handler with the payload (and context if @load was used)
     5. Writes JSON responses to stdout
     """
+    # Protect stdout: redirect sys.stdout to stderr so print() doesn't corrupt protocol
+    _protect_stdout()
+
     # Install signal handlers for graceful shutdown
     signal.signal(signal.SIGTERM, _shutdown_handler)
     signal.signal(signal.SIGINT, _shutdown_handler)
@@ -141,6 +163,9 @@ def run_once():
     5. Writes response to stdout
     6. Exits
     """
+    # Protect stdout: redirect sys.stdout to stderr so print() doesn't corrupt protocol
+    _protect_stdout()
+
     # Install signal handlers for graceful shutdown
     signal.signal(signal.SIGTERM, _shutdown_handler)
     signal.signal(signal.SIGINT, _shutdown_handler)
