@@ -1,8 +1,67 @@
 """Runner loop for processing tasks from runqy-worker."""
 
+import os
 import sys
 import json
-from .decorator import get_handler, get_loader
+import signal
+import traceback
+from .decorator import get_handler, get_loader, RetryableError
+
+# Flag for graceful shutdown
+_shutdown_requested = False
+
+# Private file object for protocol communication (set by _protect_stdout)
+_protocol_stdout = None
+
+
+def _shutdown_handler(signum, frame):
+    """Handle SIGTERM/SIGINT for graceful shutdown.
+
+    First signal: set flag so the current task can complete before exit.
+    Second signal: force exit (in case process is stuck).
+    """
+    global _shutdown_requested
+    if _shutdown_requested:
+        # Second signal — force exit
+        sys.exit(1)
+    _shutdown_requested = True
+
+
+def _protect_stdout():
+    """Redirect sys.stdout to stderr so print() doesn't corrupt the JSON protocol.
+
+    The original stdout fd is saved to _protocol_stdout for _safe_write to use.
+    """
+    global _protocol_stdout
+    # Duplicate the real stdout fd so it survives sys.stdout reassignment
+    proto_fd = os.dup(sys.stdout.fileno())
+    _protocol_stdout = os.fdopen(proto_fd, "w")
+    # Redirect sys.stdout to stderr so user print() goes to logs
+    sys.stdout = sys.stderr
+
+
+def _safe_write(data):
+    """Safely write JSON data to the protocol channel, handling BrokenPipeError and serialization errors."""
+    out = _protocol_stdout if _protocol_stdout is not None else sys.stdout
+
+    try:
+        text = json.dumps(data)
+    except (TypeError, ValueError) as e:
+        # Result not JSON-serializable — send error response instead
+        fallback = {
+            "task_id": data.get("task_id", "unknown") if isinstance(data, dict) else "unknown",
+            "result": None,
+            "error": f"Result not JSON-serializable: {e}",
+            "retry": False,
+        }
+        text = json.dumps(fallback)
+
+    try:
+        out.write(text + "\n")
+        out.flush()
+    except BrokenPipeError:
+        # Pipe closed by worker — exit cleanly
+        sys.exit(1)
 
 
 def run():
@@ -15,6 +74,13 @@ def run():
     4. Calls the registered @task handler with the payload (and context if @load was used)
     5. Writes JSON responses to stdout
     """
+    # Protect stdout: redirect sys.stdout to stderr so print() doesn't corrupt protocol
+    _protect_stdout()
+
+    # Install signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, _shutdown_handler)
+    signal.signal(signal.SIGINT, _shutdown_handler)
+
     handler = get_handler()
     if handler is None:
         raise RuntimeError("No task handler registered. Use @task decorator.")
@@ -23,14 +89,20 @@ def run():
     loader = get_loader()
     ctx = None
     if loader is not None:
-        ctx = loader()
+        try:
+            ctx = loader()
+        except Exception as e:
+            _safe_write({"status": "error", "error": f"@load failed: {e}"})
+            sys.exit(1)
 
     # Ready signal
-    print(json.dumps({"status": "ready"}))
-    sys.stdout.flush()
+    _safe_write({"status": "ready"})
 
     # Process tasks from stdin
     for line in sys.stdin:
+        if _shutdown_requested:
+            break
+
         line = line.strip()
         if not line:
             continue
@@ -53,16 +125,29 @@ def run():
                 "error": None,
                 "retry": False
             }
-        except Exception as e:
+        except json.JSONDecodeError as e:
+            response = {
+                "task_id": task_id,
+                "result": None,
+                "error": f"Invalid JSON input: {e}",
+                "retry": False
+            }
+        except RetryableError as e:
             response = {
                 "task_id": task_id,
                 "result": None,
                 "error": str(e),
+                "retry": True
+            }
+        except Exception as e:
+            response = {
+                "task_id": task_id,
+                "result": None,
+                "error": traceback.format_exc(),
                 "retry": False
             }
 
-        print(json.dumps(response))
-        sys.stdout.flush()
+        _safe_write(response)
 
 
 def run_once():
@@ -78,6 +163,13 @@ def run_once():
     5. Writes response to stdout
     6. Exits
     """
+    # Protect stdout: redirect sys.stdout to stderr so print() doesn't corrupt protocol
+    _protect_stdout()
+
+    # Install signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, _shutdown_handler)
+    signal.signal(signal.SIGINT, _shutdown_handler)
+
     handler = get_handler()
     if handler is None:
         raise RuntimeError("No task handler registered. Use @task decorator.")
@@ -86,11 +178,14 @@ def run_once():
     loader = get_loader()
     ctx = None
     if loader is not None:
-        ctx = loader()
+        try:
+            ctx = loader()
+        except Exception as e:
+            _safe_write({"status": "error", "error": f"@load failed: {e}"})
+            sys.exit(1)
 
     # Ready signal
-    print(json.dumps({"status": "ready"}))
-    sys.stdout.flush()
+    _safe_write({"status": "ready"})
 
     # Read ONE task
     line = sys.stdin.readline().strip()
@@ -115,13 +210,26 @@ def run_once():
             "error": None,
             "retry": False
         }
-    except Exception as e:
+    except json.JSONDecodeError as e:
+        response = {
+            "task_id": task_id,
+            "result": None,
+            "error": f"Invalid JSON input: {e}",
+            "retry": False
+        }
+    except RetryableError as e:
         response = {
             "task_id": task_id,
             "result": None,
             "error": str(e),
+            "retry": True
+        }
+    except Exception as e:
+        response = {
+            "task_id": task_id,
+            "result": None,
+            "error": traceback.format_exc(),
             "retry": False
         }
 
-    print(json.dumps(response))
-    sys.stdout.flush()
+    _safe_write(response)

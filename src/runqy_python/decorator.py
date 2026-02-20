@@ -4,6 +4,23 @@ _registered_handler = None
 _registered_loader = None
 
 
+class RetryableError(Exception):
+    """Raise this from a @task handler to signal that the task should be retried.
+
+    Usage:
+        from runqy_python import task, RetryableError
+
+        @task
+        def process(payload):
+            try:
+                result = call_external_api(payload)
+            except TimeoutError:
+                raise RetryableError("API timed out, please retry")
+            return result
+    """
+    pass
+
+
 def task(func):
     """Decorator to register a function as the task handler.
 
@@ -18,6 +35,11 @@ def task(func):
             return ctx["model"].predict(payload)
     """
     global _registered_handler
+    if _registered_handler is not None:
+        raise RuntimeError(
+            f"@task handler already registered ({_registered_handler.__name__}). "
+            "Only one @task handler is allowed per process."
+        )
     _registered_handler = func
     return func
 
@@ -39,6 +61,11 @@ def load(func):
             return ctx["model"].predict(payload)
     """
     global _registered_loader
+    if _registered_loader is not None:
+        raise RuntimeError(
+            f"@load handler already registered ({_registered_loader.__name__}). "
+            "Only one @load handler is allowed per process."
+        )
     _registered_loader = func
     return func
 
@@ -51,3 +78,10 @@ def get_handler():
 def get_loader():
     """Get the registered load function."""
     return _registered_loader
+
+
+def _reset():
+    """Reset registered handler and loader. For testing only."""
+    global _registered_handler, _registered_loader
+    _registered_handler = None
+    _registered_loader = None

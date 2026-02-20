@@ -1,7 +1,7 @@
 """runqy-python: Python SDK for runqy - write distributed task handlers with simple decorators."""
 
 # Task execution (for workers)
-from .decorator import task, load
+from .decorator import task, load, RetryableError
 from .runner import run, run_once
 
 # Client (for enqueuing tasks)
@@ -20,6 +20,7 @@ __all__ = [
     # Task execution
     "task",
     "load",
+    "RetryableError",
     "run",
     "run_once",
     # Client
