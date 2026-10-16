@@ -56,6 +56,24 @@ if __name__ == "__main__":
     run()
 ```
 
+### Reloading Configuration
+
+`@reload` lets the worker's `config_reload` command (`runqy control config-reload`) refresh
+configuration between tasks, without restarting the process (requires runqy-worker 0.4.0+):
+
+```python
+from runqy_python import load, reload, task, run
+
+@load
+def setup():
+    return {"models": fetch_models_yml()}
+
+@reload
+def refresh(ctx):
+    ctx["models"] = fetch_models_yml()
+    return ctx  # or None to keep the current context
+```
+
 ### One-Shot Tasks
 
 For lightweight tasks that don't need to stay loaded in memory, use `run_once()`:
@@ -81,7 +99,7 @@ if __name__ == "__main__":
 The SDK handles the runqy-worker stdin/stdout JSON protocol:
 
 1. **Load phase**: Calls `@load` function (if registered)
-2. **Ready signal**: Sends `{"status": "ready"}` after load completes
+2. **Ready signal**: Sends `{"status": "ready"}` after load completes (with `"capabilities": ["reload"]` when a `@reload` handler is registered)
 3. **Task input**: Reads JSON from stdin: `{"task_id": "...", "payload": {...}}`
 4. **Response**: Writes JSON to stdout: `{"task_id": "...", "result": {...}, "error": null, "retry": false}`
 
