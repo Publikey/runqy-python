@@ -5,7 +5,7 @@ import sys
 import json
 import signal
 import traceback
-from .decorator import get_handler, get_loader, RetryableError
+from .decorator import get_handler, get_loader, get_reloader, RetryableError
 
 # Flag for graceful shutdown
 _shutdown_requested = False
@@ -64,6 +64,34 @@ def _safe_write(data):
         sys.exit(1)
 
 
+def _handle_control(task_id, action, ctx):
+    """Run a control action sent by the worker. Returns (response, ctx)."""
+    reloader = get_reloader()
+    if action != "reload" or reloader is None:
+        return {
+            "task_id": task_id,
+            "result": None,
+            "error": f"unsupported control action: {action}",
+            "retry": False,
+        }, ctx
+    try:
+        new_ctx = reloader(ctx)
+    except Exception:
+        return {"task_id": task_id, "result": None, "error": traceback.format_exc(), "retry": False}, ctx
+    # A new context replaces the @load one; without @load the handler takes no ctx.
+    if new_ctx is not None and get_loader() is not None:
+        ctx = new_ctx
+    return {"task_id": task_id, "result": {"reloaded": True}, "error": None, "retry": False}, ctx
+
+
+def _ready_signal():
+    """Ready signal, announcing the control actions this process supports."""
+    signal_data = {"status": "ready"}
+    if get_reloader() is not None:
+        signal_data["capabilities"] = ["reload"]
+    return signal_data
+
+
 def run():
     """Main loop: load, ready signal, read tasks, call handler, write responses.
 
@@ -96,7 +124,7 @@ def run():
             sys.exit(1)
 
     # Ready signal
-    _safe_write({"status": "ready"})
+    _safe_write(_ready_signal())
 
     # Process tasks from stdin
     for line in sys.stdin:
@@ -111,6 +139,14 @@ def run():
         try:
             task_data = json.loads(line)
             task_id = task_data.get("task_id", "unknown")
+
+            # Control actions (e.g. config reload) ride the task protocol.
+            control = task_data.get("control")
+            if control:
+                response, ctx = _handle_control(task_id, control, ctx)
+                _safe_write(response)
+                continue
+
             payload = task_data.get("payload", {})
 
             # Call handler with or without context

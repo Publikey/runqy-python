@@ -2,6 +2,7 @@
 
 _registered_handler = None
 _registered_loader = None
+_registered_reloader = None
 
 
 class RetryableError(Exception):
@@ -70,6 +71,31 @@ def load(func):
     return func
 
 
+def reload(func):
+    """Decorator to register a function that reloads configuration without a restart.
+
+    Triggered by the worker's ``config_reload`` control command (``runqy control
+    config-reload``). It runs between tasks, receives the current context (the @load
+    return value, or None) and may return a new context; returning None keeps the
+    current one (without @load, the return value is ignored). An exception is reported back as the command's error and the process
+    keeps running with its previous context.
+
+    Usage:
+        @reload
+        def refresh(ctx):
+            ctx["models"] = fetch_models_yml()
+            return ctx
+    """
+    global _registered_reloader
+    if _registered_reloader is not None:
+        raise RuntimeError(
+            f"@reload handler already registered ({_registered_reloader.__name__}). "
+            "Only one @reload handler is allowed per process."
+        )
+    _registered_reloader = func
+    return func
+
+
 def get_handler():
     """Get the registered task handler."""
     return _registered_handler
@@ -80,8 +106,14 @@ def get_loader():
     return _registered_loader
 
 
+def get_reloader():
+    """Get the registered reload function."""
+    return _registered_reloader
+
+
 def _reset():
     """Reset registered handler and loader. For testing only."""
-    global _registered_handler, _registered_loader
+    global _registered_handler, _registered_loader, _registered_reloader
     _registered_handler = None
     _registered_loader = None
+    _registered_reloader = None
