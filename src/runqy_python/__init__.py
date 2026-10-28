@@ -35,4 +35,4 @@ __all__ = [
     "enqueue_batch",
 ]
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
