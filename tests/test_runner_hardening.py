@@ -419,14 +419,48 @@ class ShutdownHandlerTestCase(unittest.TestCase):
 
     def setUp(self):
         runner._shutdown_requested = False
+        runner._busy = False
 
     def tearDown(self):
         runner._shutdown_requested = False
+        runner._busy = False
 
     def test_shutdown_handler_sets_flag_on_first_signal(self):
-        """First signal should set _shutdown_requested without exiting."""
+        """First signal during a task should set _shutdown_requested without exiting."""
+        runner._busy = True
         runner._shutdown_handler(15, None)  # SIGTERM = 15
         self.assertTrue(runner._shutdown_requested)
+
+    def test_shutdown_handler_exits_at_once_when_idle(self):
+        """Idle (blocked reading stdin), the first signal exits cleanly right away."""
+        with self.assertRaises(SystemExit) as ctx:
+            runner._shutdown_handler(15, None)
+        self.assertEqual(ctx.exception.code, 0)
+
+    def test_run_stops_after_the_task_in_flight(self):
+        """A signal during a task lets it answer, then run() returns without
+        waiting for (or handling) another line."""
+        seen = []
+
+        @decorator.task
+        def handler(payload):
+            seen.append(payload["n"])
+            runner._shutdown_handler(15, None)  # SIGTERM while busy
+            return {"ok": True}
+
+        lines = "".join(json.dumps({"task_id": f"t{i}", "payload": {"n": i}}) + "\n" for i in (1, 2))
+        fake_stdout = io.StringIO()
+        try:
+            with mock.patch.object(sys, "stdin", io.StringIO(lines)), \
+                 mock.patch.object(sys, "stdout", fake_stdout), \
+                 mock.patch("runqy_python.runner._protect_stdout"), \
+                 mock.patch("signal.signal"):
+                runner.run()
+        finally:
+            decorator._reset()
+        out = [json.loads(l) for l in fake_stdout.getvalue().strip().split("\n")]
+        self.assertEqual(seen, [1])
+        self.assertEqual([o.get("task_id") for o in out], [None, "t1"])  # ready, then t1 only
 
     def test_shutdown_handler_exits_on_second_signal(self):
         """Second signal should force exit when already shutting down."""

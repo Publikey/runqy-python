@@ -9,6 +9,8 @@ from .decorator import get_handler, get_loader, get_reloader, RetryableError
 
 # Flag for graceful shutdown
 _shutdown_requested = False
+# True while run() handles a task (see _shutdown_handler)
+_busy = False
 
 # Private file object for protocol communication (set by _protect_stdout)
 _protocol_stdout = None
@@ -17,13 +19,17 @@ _protocol_stdout = None
 def _shutdown_handler(signum, frame):
     """Handle SIGTERM/SIGINT for graceful shutdown.
 
-    First signal: set flag so the current task can complete before exit.
+    No task in flight: exit now (run() is blocked reading stdin and would only
+    see the flag on a next line, so runqy-worker had to SIGKILL after its grace
+    period). Task in flight: set the flag so it completes before exit.
     Second signal: force exit (in case process is stuck).
     """
     global _shutdown_requested
     if _shutdown_requested:
         # Second signal — force exit
         sys.exit(1)
+    if not _busy:
+        sys.exit(0)
     _shutdown_requested = True
 
 
@@ -126,10 +132,18 @@ def run():
     # Ready signal
     _safe_write(_ready_signal())
 
-    # Process tasks from stdin
-    for line in sys.stdin:
+    # Process tasks from stdin. _busy tells the signal handler whether a task is
+    # in flight: idle, a SIGTERM exits at once instead of waiting for a line
+    # that never comes (runqy-worker drains the queue before stopping us).
+    global _busy
+    while True:
+        _busy = False
         if _shutdown_requested:
             break
+        line = sys.stdin.readline()
+        if not line:
+            break
+        _busy = True
 
         line = line.strip()
         if not line:
