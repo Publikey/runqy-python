@@ -23,7 +23,7 @@ classifiers = [
 ]
 
 [project.urls]
-Documentation = "https://docs.runqy.com"
+Documentation = "https://runqy.com/docs/"
 Repository = "https://github.com/Publikey/runqy-python"
 Issues = "https://github.com/Publikey/runqy-python/issues"
 

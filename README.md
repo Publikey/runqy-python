@@ -7,7 +7,7 @@
 <p align="center">
   Python SDK for <a href="https://runqy.com">runqy</a> - write distributed task handlers with simple decorators.
   <br>
-  <a href="https://docs.runqy.com"><strong>Documentation</strong></a> · <a href="https://runqy.com"><strong>Website</strong></a>
+  <a href="https://runqy.com/docs/"><strong>Documentation</strong></a> · <a href="https://runqy.com"><strong>Website</strong></a>
 </p>
 
 ## Installation
